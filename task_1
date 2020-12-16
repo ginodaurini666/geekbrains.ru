@@ -1,0 +1,68 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Dec 16 17:44:23 2020
+
+@author: ginodaurini
+
+"""
+
+import numpy as np
+import pandas as pd
+
+from sklearn.datasets import load_boston
+
+boston = load_boston()
+data = boston["data"]
+
+
+feature_names = boston["feature_names"]
+X = pd.DataFrame(data, columns=feature_names)
+X.head()
+print(X.head()) 
+
+
+target = boston["target"]
+Y = pd.DataFrame(target, columns=["price"])
+Y.head()
+print(Y.head())
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.30, random_state=42)
+from sklearn.linear_model import LinearRegression
+lr = LinearRegression()
+lr.fit(X_train, Y_train)
+
+y_pred_lr = lr.predict(X_test)
+check_test_lr = pd.DataFrame({
+    "Y_test": Y_test["price"], 
+    "Y_pred_lr": y_pred_lr.flatten()})
+lr = check_test_lr.head()
+print(lr)
+
+from sklearn.metrics import mean_squared_error
+mean_squared_error_lr = mean_squared_error(check_test_lr["Y_pred_lr"], check_test_lr["Y_test"])
+print(mean_squared_error_lr)
+
+from sklearn.ensemble import RandomForestRegressor
+clf = RandomForestRegressor(n_estimators=1000, max_depth=12, random_state=42)
+clf.fit(X_train, Y_train.values[:, 0])
+RandomForestRegressor(bootstrap=True, criterion='mse', max_depth=12,
+                      max_features='auto', max_leaf_nodes=None,
+                      min_impurity_decrease=0.0, min_impurity_split=None,
+                      min_samples_leaf=1, min_samples_split=2,
+                      min_weight_fraction_leaf=0.0, n_estimators=1000,
+                      n_jobs=None, oob_score=False, random_state=42, verbose=0,
+                      warm_start=False)
+y_pred_clf = clf.predict(X_test)
+check_test_clf = pd.DataFrame({
+    "Y_test": Y_test["price"], 
+    "Y_pred_clf": y_pred_clf.flatten()})
+
+clf = check_test_clf.head()
+print(clf)
+
+mean_squared_error_clf = mean_squared_error(check_test_clf["Y_pred_clf"], check_test_clf["Y_test"])
+print(mean_squared_error_clf)
+print(mean_squared_error_lr)
+#lr точнее clf
+
