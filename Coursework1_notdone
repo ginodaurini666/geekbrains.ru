@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Jan 08 17:25:00 2021
+
+@author: ginodaurini
+"""
+
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from scipy.stats import norm
+from scipy import stats
+
+# %matplotlib inline
+# %config InlineBackend.figure_format = 'svg'
+
+'''
+def optimizing_df(df):
+    for col in df.columns:
+        if df[col].dtypes.kind == 'i' or df[col].dtypes.kind == 'u':
+            if df[col].min() >= 0:
+                df[col] = pd.to_numeric(df[col], downcast='unsigned')
+            else:
+                df[col] = pd.to_numeric(df[col], downcast='integer')
+
+        elif df[col].dtypes.kind == 'f' or df[col].dtypes.kind == 'c':
+            df[col] = pd.to_numeric(df[col], downcast='float')
+
+        elif df[col].dtypes.kind == 'O':
+            num_unique_values = len(df[col].unique())
+            num_total_values = len(df[col])
+            if num_unique_values / num_total_values < 0.5:
+                df[col] = df[col].astype('category')
+
+    return df
+'''    
+
+train = pd.read_csv('<path_to_csv>/train.csv') #-здесь нескончаемая ошибка без указания полного пути к папке (скачивала несколько раз, пропадает после операции)
+test = pd.read_csv('<path_to_csv>/test.csv') #-аналогична предыдущей
+print("База загружена")
+
+print(f"Train:\t{train.shape[0]}\t sales and {train.shape[1]} features")
+print(f'Test:\t{test.shape[0]}\t sales and {test.shape[1]} features')
+
+test.head()
+train.head()
+
+train.info(memory_usage='deep')
+test.info(memory_usage='deep')
+
+train['Rooms'] = train['Rooms'].astype('int64')
+test['Rooms'] = test['Rooms'].astype('int64')
+
+train['HouseFloor'] = train['HouseFloor'].astype('int64')
+test['HouseFloor'] = test['HouseFloor'].astype('int64')
+
+train = optimizing_df(train)
+test = optimizing_df(test)
+
+train.info(memory_usage='deep')
+
+test.info(memory_usage='deep')
+
+all_data = pd.concat((train, test), sort=False).reset_index(drop=True)
+all_data.drop(['Price'], axis=1, inplace=True)
+print(f'all_data size is : {all_data.shape}')
+
+all_data.describe().transpose()
+
+all_data.loc[all_data['Rooms'] > 6]
+
+all_data.loc[all_data['Rooms'] == 0]
+
+'''
+def df_fix_room(df):
+    info_by_district_id = df.groupby(['DistrictId', 'HouseYear'], as_index=False).agg(
+        {'Rooms': 'sum', 'Square': 'sum'}).rename(
+        columns={'Rooms': 'sum_roos_dr', 'Square': 'sum_square_dr'})
+
+    info_by_district_id['mean_square_per_room_in_dr'] = info_by_district_id['sum_square_dr'] \
+        / info_by_district_id['sum_roos_dr']
+    info_by_district_id.drop(
+        ['sum_square_dr', 'sum_roos_dr'], axis=1, inplace=True)
+
+    df = pd.merge(df, info_by_district_id, on=[
+                  'DistrictId', 'HouseYear'], how='left')
+
+    df['mean_square_per_room_in_dr'] = df['mean_square_per_room_in_dr'].fillna(
+        df['mean_square_per_room_in_dr'].mean())
+
+    df.loc[df['Rooms'] > 6, 'Rooms'] \
+        = (df.loc[df['Rooms'] > 6, 'Square']
+           // df.loc[df['Rooms'] > 6, 'mean_square_per_room_in_dr']).astype('int')
+
+    df.loc[df['Rooms'] == 0, 'Rooms'] \
+        = (df.loc[df['Rooms'] == 0, 'Square']
+           // df.loc[df['Rooms'] == 0, 'mean_square_per_room_in_dr']).astype('int')
+
+    df.loc[df['Rooms'] == 0, 'Rooms'] = 1
+    return df
+'''
+
+
+all_data.loc[all_data['Square'] > 200].nlargest(20, 'Square')
+
+sns.distplot(all_data['Square'], fit=norm)
+
+mu, sigma = norm.fit(all_data['Square'])
+
+print(f'mu = {mu:.2f} and sigma = {sigma:.2f}')
+
+plt.legend(
+    [f'Normal dist. ($\mu=$ {mu:.2f} and $\sigma=$ {sigma:.2f} )'])
+plt.ylabel('Frequency')
+plt.title('Square distribution')
+
+# QQ-plot
+fig = plt.figure()
+res = stats.probplot(all_data['Square'], plot=plt)
+plt.show()
+
+'''
+def df_fix_square_manual(df):
+    df.loc[df['Square'] > 400, 'Square'] = df.loc[df['Square'] > 400, 'Square'] / 10
+    return df
+
+def df_fix_square(df):
+    info_by_district_id = df.groupby(['DistrictId', 'Rooms', 'HouseYear'], as_index=False).agg(
+        {'Square': 'mean'}).rename(
+        columns={'Square': 'mean_square_rooms_dr'})
+
+    df = pd.merge(df, info_by_district_id, on=[
+        'DistrictId', 'Rooms', 'HouseYear'], how='left')
+
+    df.loc[abs(df['Square'] - df['mean_square_rooms_dr']) > 2 * sigma, 'Square'] \
+        = df.loc[abs(df['Square'] - df['mean_square_rooms_dr']) > 2 * sigma, 'Rooms'] \
+        * df.loc[abs(df['Square'] - df['mean_square_rooms_dr']) > 2 * sigma, 'mean_square_per_room_in_dr']
+    return df
+    
+def prepare_lifesquare(df):
+    df.loc[df['Square'] < df['LifeSquare'],
+           'LifeSquare'] = df.loc[df['Square'] < df['LifeSquare'], 'Square']
+    return df
+
+
+def fillna_life_square(df):
+    df['LifeSquare'] = df['LifeSquare'].fillna(df['LifeSquare'].mean())
+    return df
+'''
+
+# и на этом мой интернет умирает... Кто - идиот? Я - идиот!
